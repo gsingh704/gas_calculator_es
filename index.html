@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gas Bill Calculator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #666;
+            font-weight: bold;
+        }
+
+        input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+
+        th {
+            background: #f8f9fa;
+            font-weight: bold;
+        }
+
+        th:last-child,
+        td:last-child {
+            text-align: right;
+        }
+
+        .highlight {
+            background: #e7f3ff;
+            font-weight: bold;
+        }
+
+        .total {
+            background: #d4edda;
+            font-weight: bold;
+            font-size: 18px;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .total-display {
+            text-align: center;
+            padding: 20px;
+            background: #28a745;
+            color: white;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .total-display h2 {
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+
+        .total-display .amount {
+            font-size: 36px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>⛽ Gas Bill Calculator</h1>
+
+    <div class="card">
+        <label>Start Reading (m³)</label>
+        <input type="number" id="startReading" value="89784.600" placeholder="e.g. 89.730" step="0.001">
+
+        <label>End Reading (m³)</label>
+        <input type="number" id="endReading" placeholder="e.g. 89.776" step="0.001">
+
+        <label>Price per kWh (€)</label>
+        <input type="number" id="kwhPrice" value="0.04293925" step="0.00000001">
+
+        <label>Days between readings</label>
+        <input type="number" id="days" placeholder="e.g. 62" step="1" min="1" value="1">
+
+        <button onclick="calculate()">Calculate</button>
+    </div>
+
+    <div id="results" class="hidden">
+        <div class="total-display">
+            <h2>Total Cost</h2>
+            <div class="amount" id="totalCost">€0.00</div>
+            <div style="margin-top: 10px; font-size: 14px;">
+                <span id="perDayCost">€0.00</span> per day <br>
+                <span id="perDayKwh">0.00</span> per day
+            </div>
+        </div>
+
+        <div class="card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Description</th>
+                        <th>Value</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Start Reading</td>
+                        <td id="startVal">-</td>
+                    </tr>
+                    <tr>
+                        <td>End Reading</td>
+                        <td id="endVal">-</td>
+                    </tr>
+                    <tr>
+                        <td>Days</td>
+                        <td id="daysVal">-</td>
+                    </tr>
+                    <tr class="highlight">
+                        <td>m³ Used</td>
+                        <td id="m3Val">-</td>
+                    </tr>
+                    <tr class="highlight">
+                        <td>kWh Used</td>
+                        <td id="kwhVal">-</td>
+                    </tr>
+                    <tr>
+                        <td>kWh Price</td>
+                        <td id="kwhPriceVal">-</td>
+                    </tr>
+                    <tr>
+                        <td colspan="2" style="padding: 5px;"></td>
+                    </tr>
+                    <tr>
+                        <td>Variable Cost (Gas)</td>
+                        <td id="varCostVal">€0.00</td>
+                    </tr>
+                    <tr>
+                        <td>Fixed Cost (Disponibilidad)</td>
+                        <td id="fixedCostVal">€0.00</td>
+                    </tr>
+                    <tr>
+                        <td>Hydrocarbon Tax</td>
+                        <td id="hydroTaxVal">€0.00</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Subtotal (Net)</strong></td>
+                        <td id="subtotalVal"><strong>€0.00</strong></td>
+                    </tr>
+                    <tr>
+                        <td>IVA (21%)</td>
+                        <td id="ivaVal">€0.00</td>
+                    </tr>
+                    <tr class="total">
+                        <td>Total</td>
+                        <td id="totalTableVal">€0.00</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const CONVERSION_FACTOR = 10.9130; // kWh per m3
+        const HYDRO_TAX_RATE = 0.00234; // € per kWh
+        const FIXED_DAILY_RATE = 0.26663; // € per day (Disponibilidad)
+        const VAT_RATE = 0.21; // 21%
+
+        function formatCurrency(amount) {
+            return amount.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function formatNumber(num, decimals = 3) {
+            return num.toLocaleString('es-ES', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+        }
+
+        function calculate() {
+            const startReading = parseFloat(document.getElementById('startReading').value);
+            const endReading = parseFloat(document.getElementById('endReading').value);
+            const variableRate = parseFloat(document.getElementById('kwhPrice').value);
+            const days = parseInt(document.getElementById('days').value);
+
+            if (isNaN(startReading) || isNaN(endReading)) {
+                alert('Please enter valid meter readings.');
+                return;
+            }
+
+            if (isNaN(variableRate) || variableRate <= 0) {
+                alert('Please enter a valid kWh price.');
+                return;
+            }
+
+            if (isNaN(days) || days <= 0) {
+                alert('Please enter valid number of days.');
+                return;
+            }
+
+            if (endReading < startReading) {
+                alert('End reading must be greater than start reading.');
+                return;
+            }
+
+            // Calculations
+            const volumeM3 = endReading - startReading;
+            const energyKwh = volumeM3 * CONVERSION_FACTOR;
+            const variableCost = energyKwh * variableRate;
+            const fixedCost = days * FIXED_DAILY_RATE;
+            const hydroTax = energyKwh * HYDRO_TAX_RATE;
+            const subtotal = variableCost + fixedCost + hydroTax;
+            const iva = subtotal * VAT_RATE;
+            const total = subtotal + iva;
+            const perDayCost = total / days;
+            const perDayKwh = energyKwh / days;
+
+            // Update table
+            document.getElementById('startVal').textContent = formatNumber(startReading, 3) + ' m³';
+            document.getElementById('endVal').textContent = formatNumber(endReading, 3) + ' m³';
+            document.getElementById('daysVal').textContent = days + ' days';
+            document.getElementById('m3Val').textContent = formatNumber(volumeM3, 3) + ' m³';
+            document.getElementById('kwhVal').textContent = formatNumber(energyKwh, 2) + ' kWh';
+            document.getElementById('kwhPriceVal').textContent = '€' + variableRate.toFixed(8) + '/kWh';
+            document.getElementById('varCostVal').textContent = '€' + formatCurrency(variableCost);
+            document.getElementById('fixedCostVal').textContent = '€' + formatCurrency(fixedCost);
+            document.getElementById('hydroTaxVal').textContent = '€' + formatCurrency(hydroTax);
+            document.getElementById('subtotalVal').innerHTML = '<strong>€' + formatCurrency(subtotal) + '</strong>';
+            document.getElementById('ivaVal').textContent = '€' + formatCurrency(iva);
+            document.getElementById('totalTableVal').textContent = '€' + formatCurrency(total);
+            document.getElementById('totalCost').textContent = '€' + formatCurrency(total);
+            document.getElementById('perDayCost').textContent = '€' + formatCurrency(perDayCost);
+            document.getElementById('perDayKwh').textContent = formatNumber(perDayKwh, 2) + ' kWh';
+
+            // Show results
+            document.getElementById('results').classList.remove('hidden');
+        }
+    </script>
+</body>
+
+</html>
