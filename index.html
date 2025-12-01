@@ -93,6 +93,42 @@
         .highlight-orange { color: #ff9900; }
 
         .hidden { display: none; }
+
+        @media (max-width: 768px) {
+            body { 
+                padding: 10px; 
+            }
+            
+            .grid-2, .grid-4 { 
+                grid-template-columns: 1fr; 
+            }
+
+            /* Fix input fields on mobile */
+            input, select {
+                font-size: 16px; /* Prevents auto-zoom on iOS */
+                padding: 12px;
+            }
+
+            button {
+                padding: 12px;
+                min-height: 44px; /* Better touch target */
+            }
+
+            /* Adjust table for small screens */
+            th, td { 
+                padding: 8px 4px; 
+                font-size: 14px; 
+            }
+            
+            /* Ensure charts don't overflow */
+            .chart-box { 
+                height: 250px; 
+            }
+
+            /* Adjust headings */
+            h1 { font-size: 1.5rem; }
+            h2 { font-size: 1.25rem; }
+        }
     </style>
 </head>
 
@@ -148,7 +184,7 @@
                 <button class="secondary" style="width:auto; padding:0.5rem 1rem;" onclick="app.resetData()">Reset</button>
             </div>
         </div>
-        <div style="max-height: 400px; overflow-y: auto;">
+        <div style="max-height: 400px; overflow: auto;">
             <table id="dataTable">
                 <thead>
                     <tr>
