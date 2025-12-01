@@ -33,10 +33,64 @@ body {
 h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.025em; margin: 0; }
 .controls { display: flex; gap: 0.5rem; }
 
+/* Settings Panel */
+.settings-panel {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+}
+
+.settings-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 1.5rem;
+    align-items: end;
+}
+
+.settings-group {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    align-items: end;
+}
+
+.settings-group > div {
+    display: flex;
+    flex-direction: column;
+}
+
+.settings-group label {
+    font-size: 0.8rem;
+    margin-bottom: 0.25rem;
+}
+
+.settings-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.settings-actions button {
+    width: auto;
+    padding: 0.5rem 1rem;
+    white-space: nowrap;
+}
+
+button.primary {
+    background: var(--accent);
+    color: white;
+}
+
+button.primary:hover {
+    background: var(--accent-hover);
+}
+
 /* Layout Grid */
 .dashboard-grid {
     display: grid;
-    grid-template-columns: 320px 1fr;
+    grid-template-columns: 450px 1fr;
     gap: 1.5rem;
     align-items: start;
 }
@@ -121,8 +175,8 @@ tr.selected { background: rgba(59, 130, 246, 0.1); }
 
 /* Charts */
 .chart-box { position: relative; width: 100%; }
-.h-200 { height: 200px; }
-.h-250 { height: 250px; }
+.h-200 { height: 280px; }
+.h-250 { height: 330px; }
 
 /* Utilities */
 .hidden { display: none !important; }
@@ -137,7 +191,7 @@ tr.selected { background: rgba(59, 130, 246, 0.1); }
 .grow { flex-grow: 1; }
 .text-muted { color: var(--text-muted); }
 .text-sm { font-size: 0.8rem; }
-.btn-sm { padding: 0.25rem 0.75rem; font-size: 0.8rem; }
+.btn-sm { padding: 0.5rem 1rem; font-size: 0.9rem; }
 
 /* Mobile */
 @media (max-width: 900px) {

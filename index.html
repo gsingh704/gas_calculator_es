@@ -14,24 +14,26 @@
     <div class="header-bar">
         <h1>Gas Tracker</h1>
         <div class="controls">
-            <button class="secondary btn-sm" onclick="document.getElementById('settingsPanel').classList.toggle('hidden')">⚙️ Settings</button>
+            <button class="secondary btn-sm" onclick="document.getElementById('settingsPanel').classList.toggle('hidden')">Settings</button>
             <button class="secondary btn-sm" onclick="app.resetData()">Reset</button>
         </div>
     </div>
 
     <!-- Settings Panel (Hidden by default) -->
-    <div id="settingsPanel" class="card hidden mb-1">
-        <div class="grid grid-4">
-            <div><label>Price/kWh (€)</label><input type="number" id="cfgPrice" step="0.000001"></div>
-            <div><label>Fixed/Day (€)</label><input type="number" id="cfgFixed" step="0.00001"></div>
-            <div><label>Postcode</label><input type="text" id="cfgPostcode" placeholder="28001"></div>
-            <div class="flex-end"><button onclick="app.fetchWeather()">Fetch Weather</button></div>
-        </div>
-        <div class="grid grid-4 mt-1">
-            <button class="secondary" onclick="app.updateSettings()">Save</button>
-            <button class="secondary" onclick="app.exportData()">Backup</button>
-            <button class="secondary" onclick="document.getElementById('fileInput').click()">Restore</button>
-            <input type="file" id="fileInput" style="display:none" onchange="app.importData(this)">
+    <div id="settingsPanel" class="settings-panel hidden">
+        <div class="settings-row">
+            <div class="settings-group">
+                <div><label>Price/kWh (€)</label><input type="number" id="cfgPrice" step="0.000001" placeholder="0.12"></div>
+                <div><label>Fixed/Day (€)</label><input type="number" id="cfgFixed" step="0.00001" placeholder="0.5"></div>
+                <div><label>Postcode</label><input type="text" id="cfgPostcode" placeholder="28001"></div>
+            </div>
+            <div class="settings-actions">
+                <button onclick="app.fetchWeather()">Fetch Weather</button>
+                <button class="primary" onclick="app.updateSettings()">Save Settings</button>
+                <button class="secondary" onclick="app.exportData()">Export Data</button>
+                <button class="secondary" onclick="document.getElementById('fileInput').click()">Import Data</button>
+                <input type="file" id="fileInput" style="display:none" onchange="app.importData(this)">
+            </div>
         </div>
     </div>
 
@@ -84,11 +86,15 @@
 
         <!-- Right Column: Visualizations -->
         <div class="col-right">
+            <div class="card">
+                <h2>Readings Timeline</h2>
+                <div class="chart-box h-200"><canvas id="chartReadings"></canvas></div>
+            </div>
+            <div class="card">
+                <h2>Projection Evolution</h2>
+                <div class="chart-box h-200"><canvas id="chartProjection"></canvas></div>
+            </div>
             <div class="grid grid-2">
-                <div class="card">
-                    <h2>Readings Timeline</h2>
-                    <div class="chart-box h-200"><canvas id="chartReadings"></canvas></div>
-                </div>
                 <div class="card">
                     <h2>Daily Usage & Cost</h2>
                     <div class="chart-box h-200"><canvas id="chartDaily"></canvas></div>
@@ -96,10 +102,6 @@
                 <div class="card">
                     <h2>Cumulative Cost</h2>
                     <div class="chart-box h-200"><canvas id="chartCumulative"></canvas></div>
-                </div>
-                <div class="card">
-                    <h2>Projection Evolution</h2>
-                    <div class="chart-box h-200"><canvas id="chartProjection"></canvas></div>
                 </div>
                 <div class="card">
                     <h2>Cost Breakdown</h2>
