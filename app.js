@@ -245,12 +245,7 @@ class GasApp {
 
     renderTable() {
         const tbody = document.querySelector('#dataTable tbody');
-        tbody.innerHTML = '';
-        
-        this.data.forEach((d, i) => {
-            const tr = document.createElement('tr');
-            if (this.selection.has(d.id)) tr.classList.add('selected');
-            
+        tbody.innerHTML = this.data.map((d, i) => {
             let diff = '-', cost = '-';
             if (i > 0) {
                 const prev = this.data[i-1];
@@ -259,17 +254,19 @@ class GasApp {
                 diff = usage.toFixed(3);
                 cost = '€' + this.calculateCost(usage, days).toFixed(2);
             }
-
-            tr.innerHTML = `
-                <td><input type="checkbox" ${this.selection.has(d.id) ? 'checked' : ''} onclick="app.toggleSelection(${d.id})"></td>
-                <td>${this.formatDate(d.date)}</td>
-                <td>${d.reading.toFixed(3)}</td>
-                <td>${diff}</td>
-                <td>${cost}</td>
-                <td><button class="danger" style="width:auto; padding:0.25rem 0.5rem;" onclick="app.deleteReading(${d.id})">×</button></td>
+            const isSelected = this.selection.has(d.id) ? 'selected' : '';
+            const checked = this.selection.has(d.id) ? 'checked' : '';
+            return `
+                <tr class="${isSelected}">
+                    <td><input type="checkbox" ${checked} onclick="app.toggleSelection(${d.id})"></td>
+                    <td>${this.formatDate(d.date)}</td>
+                    <td>${d.reading.toFixed(3)}</td>
+                    <td>${diff}</td>
+                    <td>${cost}</td>
+                    <td><button class="danger btn-sm" onclick="app.deleteReading(${d.id})">×</button></td>
+                </tr>
             `;
-            tbody.appendChild(tr);
-        });
+        }).join('');
     }
 
     renderAnalysis() {
@@ -373,132 +370,82 @@ class GasApp {
         const norm = this.getNormalizedData();
         if (norm.length < 2) return null;
 
-        const points = [];
-        for(let i=1; i<norm.length; i++) {
-            const curr = norm[i];
-            const dateStr = curr.date.toISOString().slice(0,10);
-            const usage = curr.reading - norm[i-1].reading;
-            const temp = this.weatherCache[dateStr];
+        const points = norm.slice(1).map((curr, i) => {
+            const temp = this.weatherCache[curr.date.toISOString().slice(0,10)];
+            return (temp !== undefined) ? { x: temp, y: curr.reading - norm[i].reading } : null;
+        }).filter(p => p !== null);
 
-            if (temp !== undefined && temp !== null) {
-                points.push({ x: temp, y: usage });
-            }
-        }
-
-        if (points.length < 5) return null; // Need enough data points
+        if (points.length < 5) return null;
 
         const n = points.length;
-        let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
-        
-        points.forEach(p => {
-            sumX += p.x;
-            sumY += p.y;
-            sumXY += p.x * p.y;
-            sumXX += p.x * p.x;
-        });
+        const sum = points.reduce((acc, p) => ({
+            x: acc.x + p.x, y: acc.y + p.y, xy: acc.xy + p.x * p.y, xx: acc.xx + p.x * p.x
+        }), { x: 0, y: 0, xy: 0, xx: 0 });
 
-        const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
-        const intercept = (sumY - slope * sumX) / n;
+        const slope = (n * sum.xy - sum.x * sum.y) / (n * sum.xx - sum.x * sum.x);
+        const intercept = (sum.y - slope * sum.x) / n;
 
-        // Calculate R-Squared
-        const meanY = sumY / n;
-        let ssTot = 0, ssRes = 0;
-        points.forEach(p => {
-            const predicted = slope * p.x + intercept;
-            ssTot += Math.pow(p.y - meanY, 2);
-            ssRes += Math.pow(p.y - predicted, 2);
-        });
-        const r2 = 1 - (ssRes / ssTot);
+        const meanY = sum.y / n;
+        const ss = points.reduce((acc, p) => ({
+            tot: acc.tot + Math.pow(p.y - meanY, 2),
+            res: acc.res + Math.pow(p.y - (slope * p.x + intercept), 2)
+        }), { tot: 0, res: 0 });
 
-        return { slope, intercept, r2, count: n };
+        return { slope, intercept, r2: 1 - (ss.res / ss.tot), count: n };
     }
 
     renderSmartProjection() {
         const model = this.calculateRegression();
-        // Get next 7 days of forecast
         const forecastDates = Object.keys(this.forecastCache).sort().slice(0, 7);
         
+        const els = {
+            temp: document.getElementById('fcTemp'),
+            usage: document.getElementById('fcUsage'),
+            cost: document.getElementById('fcCost'),
+            conf: document.getElementById('fcConf')
+        };
+
         if (!model || forecastDates.length === 0) {
-            document.getElementById('fcTemp').textContent = '-';
-            document.getElementById('fcUsage').textContent = '-';
-            document.getElementById('fcCost').textContent = '-';
-            document.getElementById('fcConf').textContent = '-';
+            Object.values(els).forEach(el => el.textContent = '-');
             return;
         }
 
-        let totalUsage = 0;
-        let totalTemp = 0;
-        let days = 0;
-        const chartLabels = [];
-        const chartData = [];
-        const chartTemp = [];
+        let totalUsage = 0, totalTemp = 0;
+        const chartData = { labels: [], usage: [], temp: [] };
 
         forecastDates.forEach(date => {
             const temp = this.forecastCache[date];
-            // Predict usage: y = mx + b
-            // Ensure usage doesn't go below 0 (physically impossible)
-            let predicted = model.slope * temp + model.intercept;
-            if (predicted < 0) predicted = 0;
+            const predicted = Math.max(0, model.slope * temp + model.intercept);
             
             totalUsage += predicted;
             totalTemp += temp;
-            days++;
 
-            chartLabels.push(date);
-            chartData.push(predicted);
-            chartTemp.push(temp);
+            chartData.labels.push(date);
+            chartData.usage.push(predicted);
+            chartData.temp.push(temp);
         });
 
-        if (days === 0) return;
-
-        const avgTemp = totalTemp / days;
-        const cost = this.calculateCost(totalUsage, days);
+        const avgTemp = totalTemp / forecastDates.length;
+        const cost = this.calculateCost(totalUsage, forecastDates.length);
         
-        // Confidence Level based on R2 and sample size
-        let confidence = 'Low';
-        if (model.r2 > 0.7 && model.count > 20) confidence = 'High';
-        else if (model.r2 > 0.4 && model.count > 10) confidence = 'Medium';
+        const confidence = (model.r2 > 0.7 && model.count > 20) ? 'High' : 
+                          (model.r2 > 0.4 && model.count > 10) ? 'Medium' : 'Low';
 
-        document.getElementById('fcTemp').textContent = avgTemp.toFixed(1) + '°C';
-        document.getElementById('fcUsage').textContent = totalUsage.toFixed(1) + ' m³';
-        document.getElementById('fcCost').textContent = '€' + cost.toFixed(2);
-        document.getElementById('fcConf').textContent = `${confidence} (R² ${(model.r2*100).toFixed(0)}%)`;
+        els.temp.textContent = avgTemp.toFixed(1) + '°C';
+        els.usage.textContent = totalUsage.toFixed(1) + ' m³';
+        els.cost.textContent = '€' + cost.toFixed(2);
+        els.conf.textContent = `${confidence} (R² ${(model.r2*100).toFixed(0)}%)`;
 
-        // Render Forecast Chart
         this.updateChart('chartForecast', 'bar', {
-            labels: chartLabels,
+            labels: chartData.labels,
             datasets: [
-                {
-                    label: 'Predicted Usage (m³)',
-                    data: chartData,
-                    backgroundColor: 'rgba(54, 162, 235, 0.6)',
-                    borderColor: 'rgba(54, 162, 235, 1)',
-                    borderWidth: 1,
-                    yAxisID: 'y'
-                },
-                {
-                    label: 'Temperature (°C)',
-                    data: chartTemp,
-                    type: 'line',
-                    borderColor: '#ff9900',
-                    backgroundColor: '#ff9900',
-                    borderWidth: 2,
-                    pointRadius: 4,
-                    yAxisID: 'y1'
-                }
+                { label: 'Predicted Usage (m³)', data: chartData.usage, backgroundColor: 'rgba(54, 162, 235, 0.6)', borderColor: 'rgba(54, 162, 235, 1)', borderWidth: 1, yAxisID: 'y' },
+                { label: 'Temperature (°C)', data: chartData.temp, type: 'line', borderColor: '#ff9900', backgroundColor: '#ff9900', borderWidth: 2, pointRadius: 4, yAxisID: 'y1' }
             ]
         }, {
             scales: {
-                y: { 
-                    beginAtZero: true, 
-                    position: 'left',
-                    title: { display: true, text: 'Usage (m³)' } 
-                },
-                y1: {
-                    position: 'right',
-                    grid: { drawOnChartArea: false },
-                    title: { display: true, text: 'Temp (°C)' }
-                },
+                y: { beginAtZero: true, position: 'left', title: { display: true, text: 'Usage (m³)' } },
+                y1: { position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Temp (°C)' } },
                 x: { ticks: { maxTicksLimit: 10 } }
             },
             plugins: { legend: { display: true } },

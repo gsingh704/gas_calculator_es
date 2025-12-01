@@ -22,7 +22,7 @@
                     <div><label>Date</label><input type="datetime-local" id="inpDate"></div>
                     <div><label>Reading (m³)</label><input type="number" id="inpReading" step="0.001"></div>
                 </div>
-                <button onclick="app.addReading()" style="margin-top: 1rem;">Add Reading</button>
+                <button onclick="app.addReading()" class="mt-1">Add Reading</button>
             </div>
             <div>
                 <h2>Settings</h2>
@@ -30,11 +30,11 @@
                     <div><label>Price/kWh (€)</label><input type="number" id="cfgPrice" step="0.000001"></div>
                     <div><label>Fixed/Day (€)</label><input type="number" id="cfgFixed" step="0.00001"></div>
                 </div>
-                <div class="grid grid-2" style="margin-top: 1rem;">
+                <div class="grid grid-2 mt-1">
                     <div><label>Postcode (ES)</label><input type="text" id="cfgPostcode" placeholder="28001"></div>
-                    <div style="display:flex; align-items:flex-end;"><button onclick="app.fetchWeather()">Fetch Weather</button></div>
+                    <div class="flex-end"><button onclick="app.fetchWeather()">Fetch Weather</button></div>
                 </div>
-                <div class="grid grid-2" style="margin-top: 1rem;">
+                <div class="grid grid-2 mt-1">
                     <button class="secondary" onclick="app.updateSettings()">Save Settings</button>
                     <button class="secondary" onclick="app.exportData()">Backup JSON</button>
                 </div>
@@ -49,22 +49,20 @@
     <!-- Analysis -->
     <div class="card">
         <h2>Interval Analysis</h2>
-        <p style="color: var(--text-muted); margin-bottom: 1rem;">Select two readings in the table below to analyze usage.</p>
+        <p class="text-muted mb-1">Select two readings in the table below to analyze usage.</p>
         <div id="analysisPanel" class="grid grid-4 hidden">
-            <div class="stat-box"><div><div class="stat-label">Days</div><div class="stat-value" id="outDays">-</div></div></div>
-            <div class="stat-box"><div><div class="stat-label">Usage</div><div class="stat-value" id="outUsage">-</div></div></div>
-            <div class="stat-box"><div><div class="stat-label">Cost</div><div class="stat-value" id="outCost">-</div></div></div>
-            <div class="stat-box"><div><div class="stat-label">30-Day Proj.</div><div class="stat-value highlight-green" id="outProj">-</div></div></div>
+            <div class="stat-box"><div class="stat-label">Days</div><div class="stat-value" id="outDays">-</div></div>
+            <div class="stat-box"><div class="stat-label">Usage</div><div class="stat-value" id="outUsage">-</div></div>
+            <div class="stat-box"><div class="stat-label">Cost</div><div class="stat-value" id="outCost">-</div></div>
+            <div class="stat-box"><div class="stat-label">30-Day Proj.</div><div class="stat-value highlight-green" id="outProj">-</div></div>
         </div>
     </div>
 
     <!-- Data Table -->
     <div class="card">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div class="flex-between">
             <h2>Readings Log</h2>
-            <div>
-                <button class="secondary" style="width:auto; padding:0.5rem 1rem;" onclick="app.resetData()">Reset</button>
-            </div>
+            <div><button class="secondary btn-md" onclick="app.resetData()">Reset</button></div>
         </div>
         <div class="table-wrapper">
             <table id="dataTable">
@@ -122,27 +120,27 @@
         </div>
     </div>
 
-    <div class="grid grid-2">
+    <div class="grid grid-2 items-start">
         <div class="card">
             <h2>Heating Efficiency (Usage per Degree-Day)</h2>
-            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem;">
+            <p class="text-muted text-sm mb-05">
                 Shows gas used per degree of coldness (Base 15.5°C). Lower is better. Spikes indicate inefficiency.
             </p>
-            <div class="chart-box" style="flex-grow: 1;"><canvas id="chartEfficiency"></canvas></div>
+            <div class="chart-box"><canvas id="chartEfficiency"></canvas></div>
         </div>
 
         <div class="card">
             <h2>Smart 7-Day Forecast</h2>
-            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">
+            <p class="text-muted text-sm mb-1">
                 Predicts cost based on your usage habits and the weather forecast for the next 7 days.
             </p>
-            <div class="grid grid-2" style="margin-bottom: 1rem;">
-                <div class="stat-box"><div><div class="stat-label">Avg Temp</div><div class="stat-value" id="fcTemp">-</div></div></div>
-                <div class="stat-box"><div><div class="stat-label">Est. Usage</div><div class="stat-value" id="fcUsage">-</div></div></div>
-                <div class="stat-box"><div><div class="stat-label">Est. Cost</div><div class="stat-value highlight-orange" id="fcCost">-</div></div></div>
-                <div class="stat-box"><div><div class="stat-label">Confidence</div><div class="stat-value" id="fcConf">-</div></div></div>
+            <div class="stats-compact mb-05">
+                <div><div class="stat-label">Avg Temp</div><div class="stat-value" id="fcTemp">-</div></div>
+                <div><div class="stat-label">Est. Usage</div><div class="stat-value" id="fcUsage">-</div></div>
+                <div><div class="stat-label">Est. Cost</div><div class="stat-value highlight-orange" id="fcCost">-</div></div>
+                <div><div class="stat-label">Confidence</div><div class="stat-value" id="fcConf">-</div></div>
             </div>
-            <div class="chart-box" style="height: 200px;"><canvas id="chartForecast"></canvas></div>
+            <div class="chart-box h-250"><canvas id="chartForecast"></canvas></div>
         </div>
     </div>
 
