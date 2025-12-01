@@ -105,27 +105,50 @@ tr.selected { background: rgba(0, 102, 204, 0.2); }
         grid-template-columns: 1fr; 
     }
 
+    .grid {
+        gap: 1rem;
+    }
+
+    .card {
+        padding: 1rem;
+    }
+
     /* Fix input fields on mobile */
     input, select {
         font-size: 16px; /* Prevents auto-zoom on iOS */
-        padding: 12px;
+        padding: 10px;
     }
 
     button {
-        padding: 12px;
+        padding: 10px;
         min-height: 44px; /* Better touch target */
     }
 
     /* Adjust table for small screens */
     th, td { 
         padding: 8px 4px; 
-        font-size: 14px; 
+        font-size: 13px; 
+        white-space: nowrap; /* Force horizontal scroll instead of squishing */
     }
     
     /* Ensure charts don't overflow */
     .chart-box { 
         height: 250px; 
     }
+}
+
+/* Utility for responsive tables */
+.table-wrapper {
+    max-height: 400px;
+    overflow: auto;
+    width: 100%;
+    -webkit-overflow-scrolling: touch; /* Smooth scroll on iOS */
+}
+
+/* Ensure canvas doesn't overflow */
+canvas {
+    max-width: 100%;
+}
 
     /* Adjust headings */
     h1 { font-size: 1.5rem; }
