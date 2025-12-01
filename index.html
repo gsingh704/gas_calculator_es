@@ -153,6 +153,10 @@
                     <div><label>Fixed/Day (€)</label><input type="number" id="cfgFixed" step="0.00001"></div>
                 </div>
                 <div class="grid grid-2" style="margin-top: 1rem;">
+                    <div><label>Postcode (ES)</label><input type="text" id="cfgPostcode" placeholder="28001"></div>
+                    <div style="display:flex; align-items:flex-end;"><button onclick="app.fetchWeather()">Fetch Weather</button></div>
+                </div>
+                <div class="grid grid-2" style="margin-top: 1rem;">
                     <button class="secondary" onclick="app.updateSettings()">Save Settings</button>
                     <button class="secondary" onclick="app.exportData()">Backup JSON</button>
                 </div>
@@ -218,9 +222,34 @@
         </div>
     </div>
 
+    <div class="grid grid-2">
+        <div class="card">
+            <h2>Projection Evolution</h2>
+            <div class="chart-box"><canvas id="chartProjection"></canvas></div>
+        </div>
+        <div class="card">
+            <h2>Cost Breakdown</h2>
+            <div class="chart-box"><canvas id="chartBreakdown"></canvas></div>
+        </div>
+    </div>
+
+    <div class="grid grid-2">
+        <div class="card">
+            <h2>Weather vs Usage</h2>
+            <div class="chart-box"><canvas id="chartWeather"></canvas></div>
+        </div>
+        <div class="card">
+            <h2>Efficiency Correlation</h2>
+            <div class="chart-box"><canvas id="chartScatter"></canvas></div>
+        </div>
+    </div>
+
     <div class="card">
-        <h2>Projection Evolution</h2>
-        <div class="chart-box"><canvas id="chartProjection"></canvas></div>
+        <h2>Heating Efficiency (Usage per Degree-Day)</h2>
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem;">
+            Shows gas used per degree of coldness (Base 15.5°C). Lower is better. Spikes indicate inefficiency.
+        </p>
+        <div class="chart-box"><canvas id="chartEfficiency"></canvas></div>
     </div>
 
     <script>
@@ -235,9 +264,10 @@
         class GasApp {
             constructor() {
                 this.data = [];
-                this.settings = { price: 0.04293925, fixed: 0.26663 };
+                this.settings = { price: 0.04293925, fixed: 0.26663, postcode: '' };
                 this.selection = new Set();
                 this.charts = {};
+                this.weatherCache = {};
                 
                 this.init();
             }
@@ -251,6 +281,7 @@
             bindInputs() {
                 document.getElementById('cfgPrice').value = this.settings.price;
                 document.getElementById('cfgFixed').value = this.settings.fixed;
+                document.getElementById('cfgPostcode').value = this.settings.postcode || '';
                 
                 const now = new Date();
                 now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
@@ -260,6 +291,7 @@
             load() {
                 const stored = localStorage.getItem('gasData');
                 const storedSettings = localStorage.getItem('gasSettings');
+                const storedWeather = localStorage.getItem('gasWeather');
                 
                 if (stored) {
                     this.data = JSON.parse(stored).map(d => ({...d, date: new Date(d.date)}));
@@ -272,6 +304,7 @@
                 }
 
                 if (storedSettings) this.settings = JSON.parse(storedSettings);
+                if (storedWeather) this.weatherCache = JSON.parse(storedWeather);
                 
                 // Default selection
                 if (this.data.length >= 2 && this.selection.size === 0) {
@@ -284,6 +317,49 @@
             save() {
                 localStorage.setItem('gasData', JSON.stringify(this.data));
                 localStorage.setItem('gasSettings', JSON.stringify(this.settings));
+                localStorage.setItem('gasWeather', JSON.stringify(this.weatherCache));
+            }
+
+            async fetchWeather() {
+                const postcode = document.getElementById('cfgPostcode').value;
+                if (!postcode) return alert('Please enter a postcode');
+                
+                this.settings.postcode = postcode;
+                this.save();
+
+                try {
+                    // 1. Geocode
+                    const geoRes = await fetch(`https://api.zippopotam.us/es/${postcode}`);
+                    if (!geoRes.ok) throw new Error('Invalid Postcode');
+                    const geoData = await geoRes.json();
+                    const lat = geoData.places[0].latitude;
+                    const lon = geoData.places[0].longitude;
+
+                    // 2. Determine Date Range (Last 30 days from last reading or today)
+                    const end = new Date();
+                    const start = new Date();
+                    start.setDate(start.getDate() - 60); // Get last 60 days to be safe
+
+                    const startStr = start.toISOString().slice(0, 10);
+                    const endStr = end.toISOString().slice(0, 10);
+
+                    // 3. Fetch Weather
+                    const weatherUrl = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${startStr}&end_date=${endStr}&daily=temperature_2m_mean&timezone=auto`;
+                    const weatherRes = await fetch(weatherUrl);
+                    const weatherData = await weatherRes.json();
+
+                    // 4. Cache
+                    if (weatherData.daily) {
+                        weatherData.daily.time.forEach((t, i) => {
+                            this.weatherCache[t] = weatherData.daily.temperature_2m_mean[i];
+                        });
+                        this.save();
+                        this.render();
+                        alert('Weather data updated!');
+                    }
+                } catch (e) {
+                    alert('Error fetching weather: ' + e.message);
+                }
             }
 
             addReading() {
@@ -525,6 +601,225 @@
 
                 // 4. Projection Evolution
                 this.renderProjectionChart();
+
+                // 5. Cost Breakdown
+                this.renderBreakdownChart();
+
+                // 6. Weather vs Usage
+                this.renderWeatherChart();
+
+                // 7. Efficiency Correlation
+                this.renderScatterChart();
+
+                // 8. Heating Efficiency
+                this.renderEfficiencyChart();
+            }
+
+            renderEfficiencyChart() {
+                const norm = this.getNormalizedData();
+                if (norm.length < 2) return;
+
+                const dataPoints = [];
+                const BASE_TEMP = 15.5; // Standard base temperature for heating
+
+                for(let i=1; i<norm.length; i++) {
+                    const curr = norm[i];
+                    const dateStr = curr.date.toISOString().slice(0,10);
+                    const usage = curr.reading - norm[i-1].reading;
+                    const temp = this.weatherCache[dateStr];
+
+                    if (temp !== undefined && temp !== null) {
+                        const hdd = BASE_TEMP - temp;
+                        // Only calculate if it's cold enough to require heating (HDD > 0)
+                        // and avoid division by zero or tiny numbers
+                        if (hdd > 0.5) {
+                            const efficiency = usage / hdd;
+                            dataPoints.push({ x: curr.date, y: efficiency });
+                        }
+                    }
+                }
+
+                this.updateChart('chartEfficiency', 'line', {
+                    datasets: [{
+                        label: 'm³ / Degree-Day',
+                        data: dataPoints,
+                        borderColor: '#9933cc',
+                        backgroundColor: 'rgba(153, 51, 204, 0.1)',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 3
+                    }]
+                }, {
+                    scales: {
+                        x: { type: 'time', time: { unit: 'day' } },
+                        y: { 
+                            beginAtZero: true,
+                            title: { display: true, text: 'm³ per Degree below 15.5°C' }
+                        }
+                    }
+                });
+            }
+
+            renderScatterChart() {
+                const norm = this.getNormalizedData();
+                if (norm.length < 2) return;
+
+                const points = [];
+
+                for(let i=1; i<norm.length; i++) {
+                    const curr = norm[i];
+                    const dateStr = curr.date.toISOString().slice(0,10);
+                    const usage = curr.reading - norm[i-1].reading;
+                    const temp = this.weatherCache[dateStr];
+
+                    if (temp !== undefined && temp !== null) {
+                        points.push({ x: temp, y: usage });
+                    }
+                }
+
+                this.updateChart('chartScatter', 'scatter', {
+                    datasets: [{
+                        label: 'Daily Usage vs Temp',
+                        data: points,
+                        backgroundColor: 'rgba(255, 153, 0, 0.6)',
+                        borderColor: '#ff9900',
+                        pointRadius: 5,
+                        pointHoverRadius: 7
+                    }]
+                }, {
+                    scales: {
+                        x: { 
+                            type: 'linear', 
+                            position: 'bottom',
+                            title: { display: true, text: 'Temperature (°C)' }
+                        },
+                        y: { 
+                            beginAtZero: true,
+                            title: { display: true, text: 'Gas Usage (m³)' }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `Temp: ${context.parsed.x}°C, Usage: ${context.parsed.y.toFixed(3)} m³`;
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            renderWeatherChart() {
+                const norm = this.getNormalizedData();
+                if (norm.length < 2) return;
+
+                const labels = [];
+                const usageData = [];
+                const tempData = [];
+
+                for(let i=1; i<norm.length; i++) {
+                    const curr = norm[i];
+                    const dateStr = curr.date.toISOString().slice(0,10);
+                    const usage = curr.reading - norm[i-1].reading;
+                    
+                    labels.push(dateStr);
+                    usageData.push(usage);
+                    tempData.push(this.weatherCache[dateStr] || null);
+                }
+
+                this.updateChart('chartWeather', 'bar', {
+                    labels: labels,
+                    datasets: [
+                        { 
+                            label: 'Gas Usage (m³)', 
+                            data: usageData, 
+                            backgroundColor: 'rgba(0, 102, 204, 0.6)',
+                            yAxisID: 'y'
+                        },
+                        { 
+                            label: 'Temperature (°C)', 
+                            data: tempData, 
+                            type: 'line',
+                            borderColor: '#cc0000',
+                            backgroundColor: '#cc0000',
+                            yAxisID: 'y1',
+                            tension: 0.4
+                        }
+                    ]
+                }, {
+                    scales: {
+                        y: { 
+                            position: 'left',
+                            title: { display: true, text: 'Usage (m³)' }
+                        },
+                        y1: { 
+                            position: 'right', 
+                            grid: { drawOnChartArea: false },
+                            title: { display: true, text: 'Temperature (°C)' }
+                        }
+                    }
+                });
+            }
+
+            renderBreakdownChart() {
+                let source = [...this.data];
+                let title = 'Cost Breakdown (All Data)';
+
+                if (this.selection.size === 2) {
+                    const ids = Array.from(this.selection);
+                    const r1 = this.data.find(d => d.id === ids[0]);
+                    const r2 = this.data.find(d => d.id === ids[1]);
+                    const [start, end] = r1.date < r2.date ? [r1, r2] : [r2, r1];
+                    
+                    source = this.data.filter(d => d.date >= start.date && d.date <= end.date);
+                    title = `Cost Breakdown (${this.formatDate(start.date)} - ${this.formatDate(end.date)})`;
+                }
+
+                if (source.length < 2) return;
+
+                source.sort((a,b) => a.date - b.date);
+                const start = source[0];
+                const end = source[source.length-1];
+                
+                const days = (end.date - start.date) / 86400000;
+                const usage = end.reading - start.reading;
+                
+                const energy = usage * CONSTANTS.CONVERSION;
+                const variable = energy * this.settings.price;
+                const fixed = days * this.settings.fixed;
+                const hydroTax = energy * CONSTANTS.TAX_RATE;
+                
+                const subtotal = variable + fixed + hydroTax;
+                const vat = subtotal * CONSTANTS.VAT;
+                const totalTax = hydroTax + vat;
+
+                this.updateChart('chartBreakdown', 'doughnut', {
+                    labels: ['Gas Usage', 'Fixed Charges', 'Taxes'],
+                    datasets: [{
+                        data: [variable, fixed, totalTax],
+                        backgroundColor: ['#0066cc', '#ff9900', '#cc0000'],
+                        borderWidth: 0
+                    }]
+                }, {
+                    plugins: { 
+                        title: { display: true, text: title },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed !== null) {
+                                        label += '€' + context.parsed.toFixed(2);
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                });
             }
 
             renderProjectionChart() {
