@@ -11,136 +11,124 @@
 </head>
 
 <body>
-    <h1>Gas Bill Calculator & Tracker</h1>
+    <div class="header-bar">
+        <h1>Gas Tracker</h1>
+        <div class="controls">
+            <button class="secondary btn-sm" onclick="document.getElementById('settingsPanel').classList.toggle('hidden')">⚙️ Settings</button>
+            <button class="secondary btn-sm" onclick="app.resetData()">Reset</button>
+        </div>
+    </div>
 
-    <!-- Settings & Input -->
-    <div class="card">
-        <div class="grid grid-2">
-            <div>
+    <!-- Settings Panel (Hidden by default) -->
+    <div id="settingsPanel" class="card hidden mb-1">
+        <div class="grid grid-4">
+            <div><label>Price/kWh (€)</label><input type="number" id="cfgPrice" step="0.000001"></div>
+            <div><label>Fixed/Day (€)</label><input type="number" id="cfgFixed" step="0.00001"></div>
+            <div><label>Postcode</label><input type="text" id="cfgPostcode" placeholder="28001"></div>
+            <div class="flex-end"><button onclick="app.fetchWeather()">Fetch Weather</button></div>
+        </div>
+        <div class="grid grid-4 mt-1">
+            <button class="secondary" onclick="app.updateSettings()">Save</button>
+            <button class="secondary" onclick="app.exportData()">Backup</button>
+            <button class="secondary" onclick="document.getElementById('fileInput').click()">Restore</button>
+            <input type="file" id="fileInput" style="display:none" onchange="app.importData(this)">
+        </div>
+    </div>
+
+    <!-- Main Dashboard Grid -->
+    <div class="dashboard-grid">
+        
+        <!-- Left Column: Input & Data -->
+        <div class="col-left">
+            <!-- Add Reading -->
+            <div class="card compact-card">
                 <h2>Add Reading</h2>
-                <div class="grid grid-2">
-                    <div><label>Date</label><input type="datetime-local" id="inpDate"></div>
-                    <div><label>Reading (m³)</label><input type="number" id="inpReading" step="0.001"></div>
-                </div>
-                <button onclick="app.addReading()" class="mt-1">Add Reading</button>
-            </div>
-            <div>
-                <h2>Settings</h2>
-                <div class="grid grid-2">
-                    <div><label>Price/kWh (€)</label><input type="number" id="cfgPrice" step="0.000001"></div>
-                    <div><label>Fixed/Day (€)</label><input type="number" id="cfgFixed" step="0.00001"></div>
-                </div>
-                <div class="grid grid-2 mt-1">
-                    <div><label>Postcode (ES)</label><input type="text" id="cfgPostcode" placeholder="28001"></div>
-                    <div class="flex-end"><button onclick="app.fetchWeather()">Fetch Weather</button></div>
-                </div>
-                <div class="grid grid-2 mt-1">
-                    <button class="secondary" onclick="app.updateSettings()">Save Settings</button>
-                    <button class="secondary" onclick="app.exportData()">Backup JSON</button>
-                </div>
-                <div class="grid grid-2" style="margin-top: 0.5rem;">
-                    <button class="secondary" onclick="document.getElementById('fileInput').click()">Restore JSON</button>
-                    <input type="file" id="fileInput" style="display:none" onchange="app.importData(this)">
+                <div class="flex gap-1">
+                    <div class="grow"><input type="datetime-local" id="inpDate"></div>
+                    <div style="width: 100px;"><input type="number" id="inpReading" step="0.001" placeholder="m³"></div>
+                    <button onclick="app.addReading()" style="width: auto;">+</button>
                 </div>
             </div>
-        </div>
-    </div>
 
-    <!-- Analysis -->
-    <div class="card">
-        <h2>Interval Analysis</h2>
-        <p class="text-muted mb-1">Select two readings in the table below to analyze usage.</p>
-        <div id="analysisPanel" class="grid grid-4 hidden">
-            <div class="stat-box"><div class="stat-label">Days</div><div class="stat-value" id="outDays">-</div></div>
-            <div class="stat-box"><div class="stat-label">Usage</div><div class="stat-value" id="outUsage">-</div></div>
-            <div class="stat-box"><div class="stat-label">Cost</div><div class="stat-value" id="outCost">-</div></div>
-            <div class="stat-box"><div class="stat-label">30-Day Proj.</div><div class="stat-value highlight-green" id="outProj">-</div></div>
-        </div>
-    </div>
-
-    <!-- Data Table -->
-    <div class="card">
-        <div class="flex-between">
-            <h2>Readings Log</h2>
-            <div><button class="secondary btn-md" onclick="app.resetData()">Reset</button></div>
-        </div>
-        <div class="table-wrapper">
-            <table id="dataTable">
-                <thead>
-                    <tr>
-                        <th>Select</th>
-                        <th>Date</th>
-                        <th>Reading</th>
-                        <th>Diff</th>
-                        <th>Cost</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody></tbody>
-            </table>
-        </div>
-    </div>
-
-    <!-- Charts -->
-    <div class="card">
-        <h2>Readings Timeline</h2>
-        <div class="chart-box"><canvas id="chartReadings"></canvas></div>
-    </div>
-    
-    <div class="grid grid-2">
-        <div class="card">
-            <h2>Daily Usage & Cost</h2>
-            <div class="chart-box"><canvas id="chartDaily"></canvas></div>
-        </div>
-        <div class="card">
-            <h2>Cumulative Cost</h2>
-            <div class="chart-box"><canvas id="chartCumulative"></canvas></div>
-        </div>
-    </div>
-
-    <div class="grid grid-2">
-        <div class="card">
-            <h2>Projection Evolution</h2>
-            <div class="chart-box"><canvas id="chartProjection"></canvas></div>
-        </div>
-        <div class="card">
-            <h2>Cost Breakdown</h2>
-            <div class="chart-box"><canvas id="chartBreakdown"></canvas></div>
-        </div>
-    </div>
-
-    <div class="grid grid-2">
-        <div class="card">
-            <h2>Weather vs Usage</h2>
-            <div class="chart-box"><canvas id="chartWeather"></canvas></div>
-        </div>
-        <div class="card">
-            <h2>Efficiency Correlation</h2>
-            <div class="chart-box"><canvas id="chartScatter"></canvas></div>
-        </div>
-    </div>
-
-    <div class="grid grid-2 items-start">
-        <div class="card">
-            <h2>Heating Efficiency (Usage per Degree-Day)</h2>
-            <p class="text-muted text-sm mb-05">
-                Shows gas used per degree of coldness (Base 15.5°C). Lower is better. Spikes indicate inefficiency.
-            </p>
-            <div class="chart-box"><canvas id="chartEfficiency"></canvas></div>
-        </div>
-
-        <div class="card">
-            <h2>Smart 7-Day Forecast</h2>
-            <p class="text-muted text-sm mb-1">
-                Predicts cost based on your usage habits and the weather forecast for the next 7 days.
-            </p>
-            <div class="stats-compact mb-05">
-                <div><div class="stat-label">Avg Temp</div><div class="stat-value" id="fcTemp">-</div></div>
-                <div><div class="stat-label">Est. Usage</div><div class="stat-value" id="fcUsage">-</div></div>
-                <div><div class="stat-label">Est. Cost</div><div class="stat-value highlight-orange" id="fcCost">-</div></div>
-                <div><div class="stat-label">Confidence</div><div class="stat-value" id="fcConf">-</div></div>
+            <!-- Analysis Stats -->
+            <div class="card compact-card">
+                <h2>Analysis</h2>
+                <div id="analysisPanel" class="stats-compact hidden">
+                    <div><div class="stat-label">Days</div><div class="stat-value" id="outDays">-</div></div>
+                    <div><div class="stat-label">Usage</div><div class="stat-value" id="outUsage">-</div></div>
+                    <div><div class="stat-label">Cost</div><div class="stat-value" id="outCost">-</div></div>
+                    <div><div class="stat-label">Proj.</div><div class="stat-value highlight-green" id="outProj">-</div></div>
+                </div>
+                <p class="text-muted text-sm" id="analysisPlaceholder">Select 2 readings to analyze.</p>
             </div>
-            <div class="chart-box h-250"><canvas id="chartForecast"></canvas></div>
+
+            <!-- Data Table -->
+            <div class="card grow">
+                <div class="table-wrapper" style="max-height: 500px;">
+                    <table id="dataTable">
+                        <thead>
+                            <tr>
+                                <th>Sel</th>
+                                <th>Date</th>
+                                <th>Reading</th>
+                                <th>Diff</th>
+                                <th>Cost</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Visualizations -->
+        <div class="col-right">
+            <div class="grid grid-2">
+                <div class="card">
+                    <h2>Readings Timeline</h2>
+                    <div class="chart-box h-200"><canvas id="chartReadings"></canvas></div>
+                </div>
+                <div class="card">
+                    <h2>Daily Usage & Cost</h2>
+                    <div class="chart-box h-200"><canvas id="chartDaily"></canvas></div>
+                </div>
+                <div class="card">
+                    <h2>Cumulative Cost</h2>
+                    <div class="chart-box h-200"><canvas id="chartCumulative"></canvas></div>
+                </div>
+                <div class="card">
+                    <h2>Projection Evolution</h2>
+                    <div class="chart-box h-200"><canvas id="chartProjection"></canvas></div>
+                </div>
+                <div class="card">
+                    <h2>Cost Breakdown</h2>
+                    <div class="chart-box h-200"><canvas id="chartBreakdown"></canvas></div>
+                </div>
+                <div class="card">
+                    <h2>Weather vs Usage</h2>
+                    <div class="chart-box h-200"><canvas id="chartWeather"></canvas></div>
+                </div>
+                <div class="card">
+                    <h2>Efficiency Correlation</h2>
+                    <div class="chart-box h-200"><canvas id="chartScatter"></canvas></div>
+                </div>
+                <div class="card">
+                    <h2>Heating Efficiency</h2>
+                    <div class="chart-box h-200"><canvas id="chartEfficiency"></canvas></div>
+                </div>
+                <div class="card">
+                    <h2>Smart 7-Day Forecast</h2>
+                    <p class="text-muted text-sm mb-05">Predicts cost based on usage habits & weather forecast.</p>
+                    <div class="stats-compact mb-05">
+                        <div><div class="stat-label">Temp</div><div class="stat-value" id="fcTemp">-</div></div>
+                        <div><div class="stat-label">Usage</div><div class="stat-value" id="fcUsage">-</div></div>
+                        <div><div class="stat-label">Cost</div><div class="stat-value highlight-orange" id="fcCost">-</div></div>
+                        <div><div class="stat-label">Conf.</div><div class="stat-value" id="fcConf">-</div></div>
+                    </div>
+                    <div class="chart-box h-200"><canvas id="chartForecast"></canvas></div>
+                </div>
+            </div>
         </div>
     </div>
 

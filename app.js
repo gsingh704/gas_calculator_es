@@ -271,9 +271,17 @@ class GasApp {
 
     renderAnalysis() {
         const panel = document.getElementById('analysisPanel');
-        if (this.selection.size !== 2) return panel.classList.add('hidden');
+        const placeholder = document.getElementById('analysisPlaceholder');
+        
+        if (this.selection.size !== 2) {
+            panel.classList.add('hidden');
+            if (placeholder) placeholder.classList.remove('hidden');
+            return;
+        }
         
         panel.classList.remove('hidden');
+        if (placeholder) placeholder.classList.add('hidden');
+
         const ids = Array.from(this.selection);
         const r1 = this.data.find(d => d.id === ids[0]);
         const r2 = this.data.find(d => d.id === ids[1]);
@@ -674,36 +682,174 @@ class GasApp {
             title = `Projection (${this.formatDate(start.date)} - ${this.formatDate(end.date)})`;
         }
 
-        const projData = [];
+        const simpleProjection = [];
+        const smartProjection = [];
+        
         if (source.length >= 2) {
+            // Calculate daily usage rates and costs for intelligent analysis
+            const dailyData = [];
+            for (let i = 1; i < source.length; i++) {
+                const prev = source[i-1];
+                const curr = source[i];
+                const days = (curr.date - prev.date) / 86400000;
+                const usage = curr.reading - prev.reading;
+                const dailyRate = usage / days; // m³ per day
+                const cost = this.calculateCost(usage, days);
+                const dailyCost = cost / days;
+                
+                // Get temperature if available
+                const dateStr = curr.date.toISOString().slice(0,10);
+                const temp = this.weatherCache[dateStr];
+                
+                dailyData.push({ 
+                    index: i, 
+                    date: curr.date,
+                    rate: dailyRate, 
+                    days: days, 
+                    usage: usage,
+                    cost: cost,
+                    dailyCost: dailyCost,
+                    temp: temp
+                });
+            }
+
+            // Multi-factor anomaly detection
+            const rates = dailyData.map(d => d.rate).sort((a, b) => a - b);
+            const costs = dailyData.map(d => d.dailyCost).sort((a, b) => a - b);
+            
+            // IQR-based outlier detection for usage rates
+            const q1Rate = rates[Math.floor(rates.length * 0.25)];
+            const q3Rate = rates[Math.floor(rates.length * 0.75)];
+            const iqrRate = q3Rate - q1Rate;
+            const lowerBoundRate = q1Rate - 1.5 * iqrRate;
+            const upperBoundRate = q3Rate + 1.5 * iqrRate;
+            
+            // IQR-based outlier detection for costs
+            const q1Cost = costs[Math.floor(costs.length * 0.25)];
+            const q3Cost = costs[Math.floor(costs.length * 0.75)];
+            const iqrCost = q3Cost - q1Cost;
+            const upperBoundCost = q3Cost + 2.0 * iqrCost; // More lenient on cost spikes
+            
+            // Calculate median and mean for adaptive weighting
+            const medianRate = rates[Math.floor(rates.length / 2)];
+            const meanRate = rates.reduce((a, b) => a + b, 0) / rates.length;
+
             let pCost = 0;
+            let smartCost = 0;
+            let smartDays = 0;
+            let recentWindow = [];
             const startNode = source[0];
             
+            // Calculate both projections
             source.forEach((d, i) => {
                 if (i === 0) return;
-                const prev = source[i-1];
-                const days = (d.date - prev.date) / 86400000;
-                pCost += this.calculateCost(d.reading - prev.reading, days);
                 
+                const dataPoint = dailyData[i - 1];
+                const { days, usage, cost, rate: dailyRate, dailyCost, temp } = dataPoint;
+                
+                // Simple projection (all data)
+                pCost += cost;
                 const totalDays = (d.date - startNode.date) / 86400000;
                 if (totalDays > 0) {
-                    projData.push({ x: d.date, y: (pCost / totalDays) * 30 });
+                    simpleProjection.push({ x: d.date, y: (pCost / totalDays) * 30 });
+                }
+                
+                // Smart anomaly detection with multiple factors
+                let isAnomaly = false;
+                
+                // Factor 1: Statistical outlier (rate or cost)
+                const isRateOutlier = dailyRate < lowerBoundRate || dailyRate > upperBoundRate;
+                const isCostOutlier = dailyCost > upperBoundCost;
+                
+                // Factor 2: Deviation from recent trend (if we have enough data)
+                recentWindow.push(dailyRate);
+                if (recentWindow.length > 7) recentWindow.shift();
+                let isRecentDeviation = false;
+                if (recentWindow.length >= 5) {
+                    const recentAvg = recentWindow.slice(0, -1).reduce((a, b) => a + b, 0) / (recentWindow.length - 1);
+                    const recentStd = Math.sqrt(recentWindow.slice(0, -1).reduce((sum, v) => sum + Math.pow(v - recentAvg, 2), 0) / (recentWindow.length - 1));
+                    isRecentDeviation = Math.abs(dailyRate - recentAvg) > 2.5 * recentStd;
+                }
+                
+                // Factor 3: Temperature correlation check (if available)
+                let isTempAnomaly = false;
+                if (temp !== undefined && temp !== null && dailyData.length >= 10) {
+                    // Check if usage is extremely low when it's very cold, or extremely high when warm
+                    const tempData = dailyData.filter(dd => dd.temp !== undefined && dd.temp !== null);
+                    if (tempData.length >= 10) {
+                        const avgTemp = tempData.reduce((sum, dd) => sum + dd.temp, 0) / tempData.length;
+                        // Unusual usage pattern: very high usage when warm OR very low usage when cold
+                        if ((temp > avgTemp + 5 && dailyRate > medianRate * 1.8) || 
+                            (temp < avgTemp - 5 && dailyRate < medianRate * 0.3)) {
+                            isTempAnomaly = true;
+                        }
+                    }
+                }
+                
+                // Combine factors: mark as anomaly if multiple indicators agree
+                if (isRateOutlier || isCostOutlier) {
+                    isAnomaly = true;
+                } else if (isRecentDeviation && isTempAnomaly) {
+                    isAnomaly = true;
+                }
+                
+                // Add to smart calculation if not anomaly
+                if (!isAnomaly) {
+                    smartCost += cost;
+                    smartDays += days;
+                }
+                
+                // Always show projection point
+                if (smartDays > 0) {
+                    smartProjection.push({ x: d.date, y: (smartCost / smartDays) * 30 });
+                } else {
+                    // If all data so far is anomalies, use simple projection as fallback
+                    smartProjection.push({ x: d.date, y: (pCost / totalDays) * 30 });
                 }
             });
         }
 
-        const datasets = [{
-            label: '30-Day Projection (€)',
-            data: projData,
-            borderColor: '#ff9900',
-            borderDash: [5,5]
-        }];
+        const datasets = [
+            {
+                label: 'Simple Average (€)',
+                data: simpleProjection,
+                borderColor: '#ff9900',
+                borderDash: [5, 5],
+                borderWidth: 2,
+                pointRadius: 3,
+                pointBackgroundColor: '#ff9900'
+            }
+        ];
+        
+        // Only add smart projection if we have enough data
+        if (smartProjection.length > 0) {
+            datasets.push({
+                label: 'Smart Prediction (€)',
+                data: smartProjection,
+                borderColor: '#00cc66',
+                borderWidth: 2,
+                pointRadius: 3,
+                pointBackgroundColor: '#00cc66'
+            });
+        }
 
         this.updateChart('chartProjection', 'line', {
             datasets: datasets
         }, {
-            plugins: { title: { display: true, text: title } },
-            scales: { x: { type: 'time', time: { unit: 'day' } }, y: { beginAtZero: true } }
+            plugins: { 
+                title: { display: true, text: title },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.dataset.label + ': €' + context.parsed.y.toFixed(2);
+                        }
+                    }
+                }
+            },
+            scales: { 
+                x: { type: 'time', time: { unit: 'day' } }, 
+                y: { beginAtZero: true, title: { display: true, text: '30-Day Cost (€)' } }
+            }
         });
     }
 
