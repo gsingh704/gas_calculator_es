@@ -122,12 +122,28 @@
         </div>
     </div>
 
-    <div class="card">
-        <h2>Heating Efficiency (Usage per Degree-Day)</h2>
-        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem;">
-            Shows gas used per degree of coldness (Base 15.5°C). Lower is better. Spikes indicate inefficiency.
-        </p>
-        <div class="chart-box"><canvas id="chartEfficiency"></canvas></div>
+    <div class="grid grid-2">
+        <div class="card">
+            <h2>Heating Efficiency (Usage per Degree-Day)</h2>
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem;">
+                Shows gas used per degree of coldness (Base 15.5°C). Lower is better. Spikes indicate inefficiency.
+            </p>
+            <div class="chart-box" style="flex-grow: 1;"><canvas id="chartEfficiency"></canvas></div>
+        </div>
+
+        <div class="card">
+            <h2>Smart 7-Day Forecast</h2>
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">
+                Predicts cost based on your usage habits and the weather forecast for the next 7 days.
+            </p>
+            <div class="grid grid-2" style="margin-bottom: 1rem;">
+                <div class="stat-box"><div><div class="stat-label">Avg Temp</div><div class="stat-value" id="fcTemp">-</div></div></div>
+                <div class="stat-box"><div><div class="stat-label">Est. Usage</div><div class="stat-value" id="fcUsage">-</div></div></div>
+                <div class="stat-box"><div><div class="stat-label">Est. Cost</div><div class="stat-value highlight-orange" id="fcCost">-</div></div></div>
+                <div class="stat-box"><div><div class="stat-label">Confidence</div><div class="stat-value" id="fcConf">-</div></div></div>
+            </div>
+            <div class="chart-box" style="height: 200px;"><canvas id="chartForecast"></canvas></div>
+        </div>
     </div>
 
     <script src="app.js"></script>

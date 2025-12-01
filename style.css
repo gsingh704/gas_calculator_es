@@ -27,11 +27,23 @@ h1, h2 { color: #fff; margin-bottom: 1rem; }
     background: var(--card-bg);
     padding: 1.5rem;
     border-radius: 8px;
-    margin-bottom: 1.5rem;
+    margin-bottom: 0;
     box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    height: 100%; /* Ensure cards fill grid cells */
+    display: flex;
+    flex-direction: column;
 }
 
-.grid { display: grid; gap: 1rem; }
+/* Add spacing to top-level layout blocks */
+body > .card, 
+body > .grid {
+    margin-bottom: 1.5rem;
+}
+
+.card h2 { margin-top: 0; }
+.card > *:last-child { margin-bottom: 0; } /* Remove bottom margin from last child */
+
+.grid { display: grid; gap: 1.5rem; }
 .grid-2 { grid-template-columns: 1fr 1fr; }
 .grid-4 { grid-template-columns: repeat(4, 1fr); }
 

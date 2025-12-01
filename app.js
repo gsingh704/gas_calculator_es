@@ -13,6 +13,7 @@ class GasApp {
         this.selection = new Set();
         this.charts = {};
         this.weatherCache = {};
+        this.forecastCache = {};
         
         this.init();
     }
@@ -37,6 +38,7 @@ class GasApp {
         const stored = localStorage.getItem('gasData');
         const storedSettings = localStorage.getItem('gasSettings');
         const storedWeather = localStorage.getItem('gasWeather');
+        const storedForecast = localStorage.getItem('gasForecast');
         
         if (stored) {
             this.data = JSON.parse(stored).map(d => ({...d, date: new Date(d.date)}));
@@ -50,6 +52,7 @@ class GasApp {
 
         if (storedSettings) this.settings = JSON.parse(storedSettings);
         if (storedWeather) this.weatherCache = JSON.parse(storedWeather);
+        if (storedForecast) this.forecastCache = JSON.parse(storedForecast);
         
         // Default selection
         if (this.data.length >= 2 && this.selection.size === 0) {
@@ -63,6 +66,7 @@ class GasApp {
         localStorage.setItem('gasData', JSON.stringify(this.data));
         localStorage.setItem('gasSettings', JSON.stringify(this.settings));
         localStorage.setItem('gasWeather', JSON.stringify(this.weatherCache));
+        localStorage.setItem('gasForecast', JSON.stringify(this.forecastCache));
     }
 
     async fetchWeather() {
@@ -80,28 +84,30 @@ class GasApp {
             const lat = geoData.places[0].latitude;
             const lon = geoData.places[0].longitude;
 
-            // 2. Determine Date Range (Last 30 days from last reading or today)
-            const end = new Date();
-            const start = new Date();
-            start.setDate(start.getDate() - 60); // Get last 60 days to be safe
-
-            const startStr = start.toISOString().slice(0, 10);
-            const endStr = end.toISOString().slice(0, 10);
-
-            // 3. Fetch Weather
-            const weatherUrl = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${startStr}&end_date=${endStr}&daily=temperature_2m_mean&timezone=auto`;
+            // 2. Fetch Weather (Past 92 days + Future 30 days)
+            // Using forecast endpoint with past_days gets us recent actuals/estimates which is better than archive
+            const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_mean&timezone=auto&past_days=92&forecast_days=30`;
             const weatherRes = await fetch(weatherUrl);
             const weatherData = await weatherRes.json();
 
-            // 4. Cache
             if (weatherData.daily) {
+                this.forecastCache = {}; // Clear old forecast
+                const today = new Date().toISOString().slice(0, 10);
+
                 weatherData.daily.time.forEach((t, i) => {
-                    this.weatherCache[t] = weatherData.daily.temperature_2m_mean[i];
+                    const temp = weatherData.daily.temperature_2m_mean[i];
+                    // Update both caches. Overwrite old data with potentially newer corrected data.
+                    if (t <= today) {
+                        this.weatherCache[t] = temp;
+                    } else {
+                        this.forecastCache[t] = temp;
+                    }
                 });
-                this.save();
-                this.render();
-                alert('Weather data updated!');
             }
+
+            this.save();
+            this.render();
+            alert('Weather data updated!');
         } catch (e) {
             alert('Error fetching weather: ' + e.message);
         }
@@ -358,6 +364,146 @@ class GasApp {
 
         // 8. Heating Efficiency
         this.renderEfficiencyChart();
+
+        // 9. Smart Forecast
+        this.renderSmartProjection();
+    }
+
+    calculateRegression() {
+        const norm = this.getNormalizedData();
+        if (norm.length < 2) return null;
+
+        const points = [];
+        for(let i=1; i<norm.length; i++) {
+            const curr = norm[i];
+            const dateStr = curr.date.toISOString().slice(0,10);
+            const usage = curr.reading - norm[i-1].reading;
+            const temp = this.weatherCache[dateStr];
+
+            if (temp !== undefined && temp !== null) {
+                points.push({ x: temp, y: usage });
+            }
+        }
+
+        if (points.length < 5) return null; // Need enough data points
+
+        const n = points.length;
+        let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+        
+        points.forEach(p => {
+            sumX += p.x;
+            sumY += p.y;
+            sumXY += p.x * p.y;
+            sumXX += p.x * p.x;
+        });
+
+        const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+        const intercept = (sumY - slope * sumX) / n;
+
+        // Calculate R-Squared
+        const meanY = sumY / n;
+        let ssTot = 0, ssRes = 0;
+        points.forEach(p => {
+            const predicted = slope * p.x + intercept;
+            ssTot += Math.pow(p.y - meanY, 2);
+            ssRes += Math.pow(p.y - predicted, 2);
+        });
+        const r2 = 1 - (ssRes / ssTot);
+
+        return { slope, intercept, r2, count: n };
+    }
+
+    renderSmartProjection() {
+        const model = this.calculateRegression();
+        // Get next 7 days of forecast
+        const forecastDates = Object.keys(this.forecastCache).sort().slice(0, 7);
+        
+        if (!model || forecastDates.length === 0) {
+            document.getElementById('fcTemp').textContent = '-';
+            document.getElementById('fcUsage').textContent = '-';
+            document.getElementById('fcCost').textContent = '-';
+            document.getElementById('fcConf').textContent = '-';
+            return;
+        }
+
+        let totalUsage = 0;
+        let totalTemp = 0;
+        let days = 0;
+        const chartLabels = [];
+        const chartData = [];
+        const chartTemp = [];
+
+        forecastDates.forEach(date => {
+            const temp = this.forecastCache[date];
+            // Predict usage: y = mx + b
+            // Ensure usage doesn't go below 0 (physically impossible)
+            let predicted = model.slope * temp + model.intercept;
+            if (predicted < 0) predicted = 0;
+            
+            totalUsage += predicted;
+            totalTemp += temp;
+            days++;
+
+            chartLabels.push(date);
+            chartData.push(predicted);
+            chartTemp.push(temp);
+        });
+
+        if (days === 0) return;
+
+        const avgTemp = totalTemp / days;
+        const cost = this.calculateCost(totalUsage, days);
+        
+        // Confidence Level based on R2 and sample size
+        let confidence = 'Low';
+        if (model.r2 > 0.7 && model.count > 20) confidence = 'High';
+        else if (model.r2 > 0.4 && model.count > 10) confidence = 'Medium';
+
+        document.getElementById('fcTemp').textContent = avgTemp.toFixed(1) + '°C';
+        document.getElementById('fcUsage').textContent = totalUsage.toFixed(1) + ' m³';
+        document.getElementById('fcCost').textContent = '€' + cost.toFixed(2);
+        document.getElementById('fcConf').textContent = `${confidence} (R² ${(model.r2*100).toFixed(0)}%)`;
+
+        // Render Forecast Chart
+        this.updateChart('chartForecast', 'bar', {
+            labels: chartLabels,
+            datasets: [
+                {
+                    label: 'Predicted Usage (m³)',
+                    data: chartData,
+                    backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1,
+                    yAxisID: 'y'
+                },
+                {
+                    label: 'Temperature (°C)',
+                    data: chartTemp,
+                    type: 'line',
+                    borderColor: '#ff9900',
+                    backgroundColor: '#ff9900',
+                    borderWidth: 2,
+                    pointRadius: 4,
+                    yAxisID: 'y1'
+                }
+            ]
+        }, {
+            scales: {
+                y: { 
+                    beginAtZero: true, 
+                    position: 'left',
+                    title: { display: true, text: 'Usage (m³)' } 
+                },
+                y1: {
+                    position: 'right',
+                    grid: { drawOnChartArea: false },
+                    title: { display: true, text: 'Temp (°C)' }
+                },
+                x: { ticks: { maxTicksLimit: 10 } }
+            },
+            plugins: { legend: { display: true } },
+            maintainAspectRatio: false
+        });
     }
 
     renderEfficiencyChart() {
