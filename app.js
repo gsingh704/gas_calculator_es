@@ -415,6 +415,18 @@ class GasApp {
 
         if (!model || forecastDates.length === 0) {
             Object.values(els).forEach(el => el.textContent = '-');
+            // Clear the chart or show empty state
+            this.updateChart('chartForecast', 'bar', {
+                labels: [],
+                datasets: []
+            }, {
+                scales: {
+                    y: { beginAtZero: true, position: 'left', title: { display: true, text: 'Usage (m³)' } },
+                    y1: { position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Temp (°C)' } }
+                },
+                plugins: { legend: { display: true } },
+                maintainAspectRatio: false
+            });
             return;
         }
 
