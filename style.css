@@ -199,8 +199,39 @@ tr.selected { background: rgba(59, 130, 246, 0.1); }
     .col-left { position: static; }
     .grid-2, .grid-4 { grid-template-columns: 1fr; }
     .stats-compact { grid-template-columns: repeat(4, 1fr); }
+    
+    .settings-row {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    .settings-group {
+        grid-template-columns: 1fr;
+    }
+    
+    .settings-actions {
+        flex-direction: column;
+    }
+    
+    .settings-actions button {
+        width: 100%;
+    }
 }
 @media (max-width: 600px) {
     body { padding: 1rem; }
     .stats-compact { grid-template-columns: 1fr 1fr; }
+    
+    .header-bar {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: flex-start;
+    }
+    
+    .controls {
+        width: 100%;
+    }
+    
+    .controls button {
+        flex: 1;
+    }
 }
