@@ -84,10 +84,14 @@ class GasApp {
             const lat = geoData.places[0].latitude;
             const lon = geoData.places[0].longitude;
 
-            // 2. Fetch Weather (Past 92 days + Future 30 days)
+            // 2. Fetch Weather (Past 31 days + Future 7 days)
             // Using forecast endpoint with past_days gets us recent actuals/estimates which is better than archive
-            const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_mean&timezone=auto&past_days=92&forecast_days=30`;
+            // Note: API limits - past_days max is around 61-92 depending on location, forecast_days max is 16
+            const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_mean&timezone=auto&past_days=31&forecast_days=7`;
             const weatherRes = await fetch(weatherUrl);
+            if (!weatherRes.ok) {
+                throw new Error(`Weather API error: ${weatherRes.status}`);
+            }
             const weatherData = await weatherRes.json();
 
             if (weatherData.daily) {
