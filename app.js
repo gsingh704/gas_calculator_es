@@ -347,16 +347,79 @@ class GasApp {
             }
         });
 
-        // 3. Cumulative
+        // 3. Cumulative - with breakdown of tax, fixed, and IVA
+        const cumVariable = [], cumFixed = [], cumTax = [], cumIVA = [], cumTotal = [];
+        let runningVariable = 0, runningFixed = 0, runningTax = 0, runningIVA = 0, runningTotal = 0;
+
+        for(let i=1; i<norm.length; i++) {
+            const curr = norm[i];
+            const usage = curr.reading - norm[i-1].reading;
+            const energy = usage * CONSTANTS.CONVERSION;
+            
+            const variable = energy * this.settings.price;
+            const fixed = this.settings.fixed;
+            const tax = energy * CONSTANTS.TAX_RATE;
+            const subtotal = variable + fixed + tax;
+            const iva = subtotal * CONSTANTS.VAT;
+            const total = subtotal + iva;
+            
+            runningVariable += variable;
+            runningFixed += fixed;
+            runningTax += tax;
+            runningIVA += iva;
+            runningTotal += total;
+            
+            cumVariable.push(runningVariable);
+            cumFixed.push(runningFixed);
+            cumTax.push(runningTax);
+            cumIVA.push(runningIVA);
+            cumTotal.push(runningTotal);
+        }
+
         this.updateChart('chartCumulative', 'line', {
             labels,
-            datasets: [{
-                label: 'Cumulative Cost (€)',
-                data: cumCost,
-                borderColor: '#00cc66',
-                fill: true,
-                backgroundColor: 'rgba(0, 204, 102, 0.1)'
-            }]
+            datasets: [
+                {
+                    label: 'Total Cost',
+                    data: cumTotal,
+                    borderColor: '#00cc66',
+                    backgroundColor: 'rgba(0, 204, 102, 0.1)',
+                    fill: true,
+                    borderWidth: 3
+                },
+                {
+                    label: 'Variable Cost',
+                    data: cumVariable,
+                    borderColor: '#0066cc',
+                    backgroundColor: 'rgba(0, 102, 204, 0.1)',
+                    fill: true,
+                    borderWidth: 2
+                },
+                {
+                    label: 'Fixed Charges',
+                    data: cumFixed,
+                    borderColor: '#ff9900',
+                    backgroundColor: 'rgba(255, 153, 0, 0.1)',
+                    fill: true,
+                    borderWidth: 2
+                },
+                {
+                    label: 'Tax',
+                    data: cumTax,
+                    borderColor: '#cc0000',
+                    backgroundColor: 'rgba(204, 0, 0, 0.1)',
+                    fill: true,
+                    borderWidth: 2
+                },
+                {
+                    label: 'IVA',
+                    data: cumIVA,
+                    borderColor: '#9933cc',
+                    backgroundColor: 'rgba(153, 51, 204, 0.1)',
+                    fill: true,
+                    borderWidth: 2
+                }
+            ]
         });
 
         // 4. Projection Evolution
